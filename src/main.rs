@@ -154,7 +154,6 @@ impl<'a> Thumbnail<'a> {
         let y = src_geom.y + (src_geom.height - config.height) as i16 / 2;
 
         let window = conn.generate_id()?;
-        let cw = CreateWindowAux::new().override_redirect(1);
         conn.create_window(
             screen.root_depth,
             window,
@@ -166,14 +165,20 @@ impl<'a> Thumbnail<'a> {
             0,
             WindowClass::INPUT_OUTPUT,
             screen.root_visual,
-            &cw,
+            &CreateWindowAux::new()
+            .override_redirect(1)
+            .event_mask(
+                EventMask::SUBSTRUCTURE_NOTIFY
+                | EventMask::BUTTON_PRESS
+                | EventMask::BUTTON_RELEASE
+                | EventMask::POINTER_MOTION,
+            ),
         )?;
-        conn.map_window(window)?;
 
         let opacity_atom = conn
-            .intern_atom(false, b"_NET_WM_WINDOW_OPACITY")?
-            .reply()?
-            .atom;
+        .intern_atom(false, b"_NET_WM_WINDOW_OPACITY")?
+        .reply()?
+        .atom;
         conn.change_property32(
             PropMode::REPLACE,
             window,
@@ -181,6 +186,27 @@ impl<'a> Thumbnail<'a> {
             AtomEnum::CARDINAL,
             &[config.opacity],
         )?;
+
+        let wm_class = conn.intern_atom(false, b"WM_CLASS")?.reply()?.atom;
+        conn.change_property8(
+            PropMode::REPLACE,
+            window,
+            wm_class,
+            AtomEnum::STRING,
+            b"eve-l-preview\0eve-l-preview\0",
+        )?;
+
+        let net_wm_state = conn.intern_atom(false, b"_NET_WM_STATE")?.reply()?.atom;
+        let above_atom = conn.intern_atom(false, b"_NET_WM_STATE_ABOVE")?.reply()?.atom;
+        conn.change_property32(
+            PropMode::REPLACE,
+            window,
+            net_wm_state,
+            AtomEnum::ATOM,
+            &[above_atom],
+        )?;
+
+        conn.map_window(window)?;
 
         let border_fill = conn.generate_id()?;
         conn.render_create_solid_fill(border_fill, config.border_color)?;
@@ -414,7 +440,7 @@ impl<'a> Thumbnail<'a> {
             ev,
         )?;
         self.conn.flush()?;
-        debug!("focused window: window={}", self.window);
+        info!("focused window: window={}", self.window);
         Ok(())
     }
 
