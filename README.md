@@ -68,7 +68,6 @@ For usage in Hyprland you need to set the following window rules:
 ```
 windowrule = focusonactivate, title:^(EVE|EVE - .*)$
 windowrule = pin, class:^eve-l-preview$
-windowrule = allowsinput, class:^eve-l-preview$
 ```
 
 ## Usage
