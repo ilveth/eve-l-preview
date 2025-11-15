@@ -125,8 +125,6 @@ struct InputState {
 #[derive(Debug)]
 struct Thumbnail<'a> {
     window: Window,
-    x: i16,
-    y: i16,
 
     config: &'a Config,
     border_fill: Picture,
@@ -251,8 +249,6 @@ impl<'a> Thumbnail<'a> {
         conn.damage_create(damage, src, DamageReportLevel::RAW_RECTANGLES)?;
 
         let mut _self = Self {
-            x,
-            y,
             window,
             config,
 
@@ -456,22 +452,28 @@ impl<'a> Thumbnail<'a> {
         Ok(())
     }
 
-    fn reposition(&mut self, x: i16, y: i16) -> Result<()> {
+    fn reposition(&self, x: i16, y: i16) -> Result<()> {
         self.conn.configure_window(
             self.window,
             &ConfigureWindowAux::new().x(x as i32).y(y as i32),
         )?;
         self.conn.flush()?;
-        self.x = x;
-        self.y = y;
         Ok(())
     }
 
     fn is_hovered(&self, x: i16, y: i16) -> bool {
-        x >= self.x
-            && x <= self.x + self.config.width as i16
-            && y >= self.y
-            && y <= self.y + self.config.height as i16
+        if let Ok(req) = self
+            .conn
+            .get_geometry(self.window)
+            .inspect_err(|x| error!("encountered error in is_hovered. err={x:#?}"))
+            && let Ok(geom) = req.reply()
+        {
+            return x >= geom.x
+                && x <= geom.x + geom.width as i16
+                && y >= geom.y
+                && y <= geom.y + geom.height as i16;
+        }
+        false
     }
 }
 
@@ -612,8 +614,7 @@ fn get_eves<'a>(
             u32::MAX,
         )?
         .reply()?;
-    let windows: Vec<u32> = prop
-        .value32().map(|x| x.collect()).unwrap_or_else(|| vec![]);
+    let windows: Vec<u32> = prop.value32().map(|x| x.collect()).unwrap_or_else(Vec::new);
 
     let mut eves = HashMap::new();
     for w in windows {
