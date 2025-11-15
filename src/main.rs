@@ -32,15 +32,24 @@ struct Config {
 }
 
 impl Config {
-    fn parse_num<T: std::str::FromStr + TryFrom<u128>>(var: &str) -> Option<T> where <T as TryFrom<u128>>::Error: std::fmt::Debug, <T as std::str::FromStr>::Err: std::fmt::Debug {
+    fn parse_num<T: std::str::FromStr + TryFrom<u128>>(var: &str) -> Option<T>
+    where
+        <T as TryFrom<u128>>::Error: std::fmt::Debug,
+        <T as std::str::FromStr>::Err: std::fmt::Debug,
+    {
         if let Ok(s) = env::var(var) {
             let s = s.trim();
             if let Some(hex) = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X"))
                 && let Ok(n) = u128::from_str_radix(hex, 16)
             {
-                return T::try_from(n).inspect_err(|e| error!("failed to parse '{var}' err={e:?}")).ok();
+                return T::try_from(n)
+                    .inspect_err(|e| error!("failed to parse '{var}' err={e:?}"))
+                    .ok();
             } else {
-                return s.parse::<T>().inspect_err(|e| error!("failed to parse '{var}' err={e:?}")).ok();
+                return s
+                    .parse::<T>()
+                    .inspect_err(|e| error!("failed to parse '{var}' err={e:?}"))
+                    .ok();
             }
         }
         None
@@ -53,9 +62,7 @@ impl Config {
             let g = ((raw >> 8) & 0xFF) as u16;
             let b = (raw & 0xFF) as u16;
 
-            let scale = |v: u16| {
-               (v as f32 /u8::MAX as f32 * u16::MAX as f32) as u16
-            };
+            let scale = |v: u16| (v as f32 / u8::MAX as f32 * u16::MAX as f32) as u16;
 
             Some(Color {
                 red: scale(r),
@@ -91,7 +98,7 @@ impl Config {
                 red: 0xFFFF,
                 green: 0,
                 blue: 0,
-                alpha: 0x7F00
+                alpha: 0x7F00,
             }),
             text_x: Self::parse_num("TEXT_X").unwrap_or(10),
             text_y: Self::parse_num("TEXT_Y").unwrap_or(125),
@@ -101,7 +108,9 @@ impl Config {
             text_background: Self::premultiply_argb32(
                 Self::parse_num("TEXT_BACKGROUND").unwrap_or(0x7F_00_00_00),
             ),
-            hide_when_no_focus: env::var("HIDE_WHEN_NO_FOCUS").map(|x| x.parse().unwrap_or(false)).unwrap_or(false),
+            hide_when_no_focus: env::var("HIDE_WHEN_NO_FOCUS")
+                .map(|x| x.parse().unwrap_or(false))
+                .unwrap_or(false),
         }
     }
 }
@@ -165,20 +174,18 @@ impl<'a> Thumbnail<'a> {
             0,
             WindowClass::INPUT_OUTPUT,
             screen.root_visual,
-            &CreateWindowAux::new()
-            .override_redirect(1)
-            .event_mask(
+            &CreateWindowAux::new().override_redirect(1).event_mask(
                 EventMask::SUBSTRUCTURE_NOTIFY
-                | EventMask::BUTTON_PRESS
-                | EventMask::BUTTON_RELEASE
-                | EventMask::POINTER_MOTION,
+                    | EventMask::BUTTON_PRESS
+                    | EventMask::BUTTON_RELEASE
+                    | EventMask::POINTER_MOTION,
             ),
         )?;
 
         let opacity_atom = conn
-        .intern_atom(false, b"_NET_WM_WINDOW_OPACITY")?
-        .reply()?
-        .atom;
+            .intern_atom(false, b"_NET_WM_WINDOW_OPACITY")?
+            .reply()?
+            .atom;
         conn.change_property32(
             PropMode::REPLACE,
             window,
@@ -197,7 +204,10 @@ impl<'a> Thumbnail<'a> {
         )?;
 
         let net_wm_state = conn.intern_atom(false, b"_NET_WM_STATE")?.reply()?.atom;
-        let above_atom = conn.intern_atom(false, b"_NET_WM_STATE_ABOVE")?.reply()?.atom;
+        let above_atom = conn
+            .intern_atom(false, b"_NET_WM_STATE_ABOVE")?
+            .reply()?
+            .atom;
         conn.change_property32(
             PropMode::REPLACE,
             window,
@@ -269,7 +279,9 @@ impl<'a> Thumbnail<'a> {
     }
 
     fn visibility(&mut self, visible: bool) -> Result<()> {
-        if visible == self.visible {return Ok(());}
+        if visible == self.visible {
+            return Ok(());
+        }
         self.visible = visible;
         if visible {
             self.conn.map_window(self.window)?;
@@ -572,6 +584,7 @@ fn check_and_create_window<'a>(
             &ChangeWindowAttributesAux::new()
                 .event_mask(EventMask::PROPERTY_CHANGE | EventMask::FOCUS_CHANGE),
         )?;
+
         let font = conn.generate_id()?;
         conn.open_font(font, b"fixed")?;
         let thumbnail = Thumbnail::new(conn, screen, character_name, window, font, config)?;
@@ -600,9 +613,7 @@ fn get_eves<'a>(
         )?
         .reply()?;
     let windows: Vec<u32> = prop
-        .value32()
-        .ok_or_else(|| anyhow::anyhow!("Invalid return from _NET_CLIENT_LIST"))?
-        .collect();
+        .value32().map(|x| x.collect()).unwrap_or_else(|| vec![]);
 
     let mut eves = HashMap::new();
     for w in windows {
@@ -695,7 +706,7 @@ fn handle_event<'a>(
         Event::ButtonPress(event) => {
             if let Some((_, thumbnail)) = eves
                 .iter_mut()
-                .find(|(_, thumb)| thumb.is_hovered(event.root_x, event.root_y) && thumb.visible)
+                .find(|(_, thumb)| thumb.visible && thumb.is_hovered(event.root_x, event.root_y))
             {
                 let geom = conn.get_geometry(thumbnail.window)?.reply()?;
                 thumbnail.input_state.drag_start = (event.root_x, event.root_y);
@@ -704,11 +715,12 @@ fn handle_event<'a>(
             }
         }
         Event::ButtonRelease(event) => {
-            if let Some((_, thumbnail)) = eves
-                .iter_mut()
-                .find(|(_, thumb)| thumb.is_hovered(event.root_x, event.root_y) && thumb.input_state.dragging)
-            {
-                if event.detail == 1 //
+            if let Some((_, thumbnail)) = eves.iter_mut().find(|(_, thumb)| {
+                thumb.visible
+                    && thumb.input_state.dragging
+                    && thumb.is_hovered(event.root_x, event.root_y)
+            }) {
+                if event.detail == 1
                     && thumbnail.input_state.drag_start == (event.root_x, event.root_y)
                 {
                     thumbnail.focus()?;
@@ -718,7 +730,9 @@ fn handle_event<'a>(
         }
         Event::MotionNotify(event) => {
             if let Some((_, thumbnail)) = eves.iter_mut().find(|(_, thumb)| {
-                thumb.input_state.dragging && thumb.is_hovered(event.root_x, event.root_y)
+                thumb.visible
+                    && thumb.input_state.dragging
+                    && thumb.is_hovered(event.root_x, event.root_y)
             }) {
                 // TODO: snap to be inline with other thumbnails
                 let dx = event.root_x - thumbnail.input_state.drag_start.0;
