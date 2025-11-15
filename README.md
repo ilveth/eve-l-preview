@@ -62,6 +62,15 @@ environment.systemPackages = [ eve-l-preview.packages.${pkgs.system}.default ];
 cargo install --locked --git https://github.com/ilveth/eve-l-preview
 ```
 
+### Hyprland
+
+For usage in Hyprland you need to set the following window rules:
+```
+windowrule = focusonactivate, title:^(EVE|EVE - .*)$
+windowrule = pin, class:^eve-l-preview$
+windowrule = allowsinput, class:^eve-l-preview$
+```
+
 ## Usage
 
 Run it before or after launching EVE.
