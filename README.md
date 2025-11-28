@@ -39,9 +39,12 @@ WIDTH=320 HEIGHT=180 BORDER_COLOR=0xFF00FF00 HIDE_WHEN_NO_FOCUS=true eve-l-previ
 
 ## Installation
 
-### Binary
+### Binary (Recommended)
 
-Prebuilt static binaries (linked against musl64) are available on the releases page.
+> [!TIP]
+>This is the recommended way to run eve-l-preview for non-tinkerers unless you already have cargo installed or you use the nix package manager.
+
+Prebuilt static binaries (linked against musl64) are available on the [releases](https://github.com/ilveth/eve-l-preview/releases) page.
 No external runtime dependencies are required.
 
 ### Nix
