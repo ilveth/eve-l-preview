@@ -19,6 +19,8 @@ use x11rb::wrapper::ConnectionExt as WrapperExt;
 
 #[derive(Debug)]
 struct Config {
+    posx: i16,
+    posy: i16,
     width: u16,
     height: u16,
     opacity: u32,
@@ -90,6 +92,8 @@ impl Config {
 
     fn new() -> Self {
         Self {
+            posx : Self::parse_num("POSX").unwrap_or(0),
+            posy : Self::parse_num("POSY").unwrap_or(0),
             width: Self::parse_num("WIDTH").unwrap_or(240),
             height: Self::parse_num("HEIGHT").unwrap_or(135),
             opacity: Self::parse_num("OPACITY").unwrap_or(0xC0000000),
@@ -149,6 +153,8 @@ struct Thumbnail<'a> {
 
 impl<'a> Thumbnail<'a> {
     fn new(
+        x: i16,
+        y: i16,
         conn: &'a RustConnection,
         screen: &Screen,
         character_name: String,
@@ -156,10 +162,6 @@ impl<'a> Thumbnail<'a> {
         font: Font,
         config: &'a Config,
     ) -> Result<Self> {
-        let src_geom = conn.get_geometry(src)?.reply()?;
-        let x = src_geom.x + (src_geom.width - config.width) as i16 / 2;
-        let y = src_geom.y + (src_geom.height - config.height) as i16 / 2;
-
         let window = conn.generate_id()?;
         conn.create_window(
             screen.root_depth,
@@ -550,6 +552,7 @@ fn check_and_create_window<'a>(
     screen: &Screen,
     config: &'a Config,
     window: Window,
+    client_count: usize,
 ) -> Result<Option<Thumbnail<'a>>> {
     let pid_atom = conn.intern_atom(false, b"_NET_WM_PID")?.reply()?.atom;
     if let Ok(prop) = conn
@@ -589,7 +592,9 @@ fn check_and_create_window<'a>(
 
         let font = conn.generate_id()?;
         conn.open_font(font, b"fixed")?;
-        let thumbnail = Thumbnail::new(conn, screen, character_name, window, font, config)?;
+        let x = config.posx + (client_count as i16 * config.width as i16);
+        let y = config.posy;
+        let thumbnail = Thumbnail::new(x, y, conn, screen, character_name, window, font, config)?;
         conn.close_font(font)?;
         info!("constructed Thumbnail for eve window: window={window}");
         Ok(Some(thumbnail))
@@ -615,10 +620,9 @@ fn get_eves<'a>(
         )?
         .reply()?;
     let windows: Vec<u32> = prop.value32().map(|x| x.collect()).unwrap_or_else(Vec::new);
-
     let mut eves = HashMap::new();
     for w in windows {
-        if let Some(eve) = check_and_create_window(conn, screen, config, w)? {
+        if let Some(eve) = check_and_create_window(conn, screen, config, w, eves.len())? {
             eves.insert(w, eve);
         }
     }
@@ -645,7 +649,7 @@ fn handle_event<'a>(
             }
         }
         CreateNotify(event) => {
-            if let Some(thumbnail) = check_and_create_window(conn, screen, config, event.window)? {
+            if let Some(thumbnail) = check_and_create_window(conn, screen, config, event.window, eves.len())? {
                 eves.insert(event.window, thumbnail);
             }
         }
@@ -667,7 +671,7 @@ fn handle_event<'a>(
                 thumbnail.update_name()?;
             } else if event.atom == wm_name
                 && let Some(thumbnail) =
-                    check_and_create_window(conn, screen, config, event.window)?
+                    check_and_create_window(conn, screen, config, event.window, eves.len())?
             {
                 eves.insert(event.window, thumbnail);
             } else if event.atom == net_wm_state

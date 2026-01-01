@@ -18,6 +18,8 @@ All configuration is done via environment variables:
 
 | Variable | Type | Default | Description |
 |-----------|------|----------|-------------|
+| `POSX`  | i16 | 0 | X position of first thumbnail |
+| `POSY`  | i16 | 0 | Y position of first thumbnail |
 | `WIDTH` | u16 | 240 | Thumbnail width |
 | `HEIGHT` | u16 | 135 | Thumbnail height |
 | `OPACITY` | u32 | `0xC0000000` | Thumbnail window opacity |
